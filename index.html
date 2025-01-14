@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <!-- 1. 게임 이름을 "분수를 소수로"으로 지정 -->
+    <title>분수를 소수로</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" defer></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #ece9e6, #ffffff);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .hidden {
+            display: none;
+        }
+        #start-screen, #game-screen, #end-screen {
+            width: 100%;
+            max-width: 600px;
+            padding: 20px;
+            box-sizing: border-box;
+            text-align: center;
+        }
+        #start-screen h1 {
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        .difficulty-button {
+            padding: 15px 30px;
+            margin: 10px;
+            font-size: 1.2em;
+            cursor: pointer;
+            border: none;
+            border-radius: 8px;
+            background-color: #4CAF50;
+            color: white;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+        .difficulty-button:hover {
+            background-color: #45a049;
+            transform: scale(1.05);
+        }
+        .input-group {
+            margin-bottom: 20px;
+        }
+        .input-group label {
+            display: block;
+            font-size: 1.2em;
+            margin-bottom: 5px;
+            color: #333;
+        }
+        .input-group input {
+            width: 80%;
+            padding: 10px;
+            font-size: 1.2em;
+            border: 2px solid #4CAF50;
+            border-radius: 8px;
+            box-sizing: border-box;
+            transition: border-color 0.3s;
+        }
+        .input-group input:focus {
+            border-color: #45a049;
+            outline: none;
+        }
+        .submit-button, #send-score-button, #restart-button {
+            padding: 15px 30px;
+            font-size: 1.2em;
+            cursor: pointer;
+            border: none;
+            border-radius: 8px;
+            background-color: #2196F3;
+            color: white;
+            transition: background-color 0.3s, transform 0.2s;
+            margin-top: 10px;
+        }
+        .submit-button:hover, #send-score-button:hover, #restart-button:hover {
+            background-color: #0b7dda;
+            transform: scale(1.05);
+        }
+        #response {
+            margin-top: 20px;
+            font-size: 1.1em;
+            color: #333;
+            white-space: pre-wrap;
+        }
+        #game-info {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 20px;
+        }
+        #energy-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #ddd;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        #energy {
+            height: 100%;
+            width: 100%;
+            background-color: #4CAF50;
+            transition: width 0.5s;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Start Screen -->
+    <div id="start-screen">
+        <!-- 1. 게임 이름 제목 -->
+        <h1>분수를 소수로</h1>
+        <!-- 2. 첫 화면에 이름을 입력할 수 있게 해줌 -->
+        <div class="input-group">
+            <label for="player-name">이름을 입력하세요:</label>
+            <input type="text" id="player-name" required>
+        </div>
+        <p>난이도를 선택하세요:</p>
+        <button class="difficulty-button" data-difficulty="최상">최상</button>
+        <button class="difficulty-button" data-difficulty="상">상</button>
+        <button class="difficulty-button" data-difficulty="중">중</button>
+        <button class="difficulty-button" data-difficulty="하">하</button>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="game-screen" class="hidden">
+        <div id="game-info">
+            <div id="score">점수: 0</div>
+            <div id="lives">남은 기회: 3</div>
+            <div id="game-time">총 시간: 0초</div>
+        </div>
+        <div id="energy-bar">
+            <div id="energy"></div>
+        </div>
+        <div id="question"></div>
+        <div id="inputs">
+            <div class="input-group">
+                <label for="decimal">소수를 입력하세요 :</label>
+                <input type="number" step="0.001" id="decimal" required>
+            </div>
+            <button class="submit-button">제출</button>
+        </div>
+    </div>
+
+    <!-- End Screen -->
+    <div id="end-screen" class="hidden">
+        <h2>게임 종료!</h2>
+        <p id="final-score">최종 점수: 0</p>
+        <p id="final-time">총 시간: 0초</p>
+        <!-- 4. 게임이 끝나면 "점수전송" 버튼 -->
+        <button id="send-score-button">점수 전송</button>
+        <!-- 5. 전송 성공/실패 결과 표시 영역 -->
+        <div id="response"></div>
+        <button id="restart-button">다시 시작</button>
+    </div>
+
+    <script>
+        const startScreen = document.getElementById('start-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const endScreen = document.getElementById('end-screen');
+        const playerNameInput = document.getElementById('player-name');
+        const sendScoreButton = document.getElementById('send-score-button');
+        const responseDiv = document.getElementById('response');
+        const questionElement = document.getElementById('question');
+        const decimalInput = document.getElementById('decimal');
+        const submitButton = document.querySelector('.submit-button');
+        const restartButton = document.getElementById('restart-button');
+
+        let playerName = '';
+        let correctDecimal = '';
+        let score = 0;
+        let lives = 3;
+        let startTime;
+        let gameInterval;
+
+        // 10, 100, 1000 중 하나를 무작위로 택해서 문제 내기
+        function generateQuestion() {
+            const denominatorOptions = [10, 100, 1000];
+            const denominator = denominatorOptions[Math.floor(Math.random() * denominatorOptions.length)];
+            
+            // 분자는 1 ~ (denominator - 1) 사이
+            const numerator = Math.floor(Math.random() * (denominator - 1)) + 1;
+
+            // 분모에 따라 소수점 자리수 결정: 10->1자리, 100->2자리, 1000->3자리
+            let decimalPlaces = 1;
+            if (denominator === 100) decimalPlaces = 2;
+            if (denominator === 1000) decimalPlaces = 3;
+
+            // 정답
+            correctDecimal = (numerator / denominator).toFixed(decimalPlaces);
+
+            // 화면 표시
+            questionElement.innerHTML = `분수를 소수로 변환하세요:<br>\\(\\frac{${numerator}}{${denominator}}\\)`;
+            MathJax.typesetPromise();
+
+            // 입력창 초기화
+            decimalInput.value = "";
+            decimalInput.focus();
+        }
+
+        // 게임 시작 함수
+        function startGame(difficulty) {
+            // 난이도에 따라 초기 설정 변경 가능
+            // 예: lives = difficulty === '하' ? 5 : ... 등
+            score = 0;
+            lives = 3;
+            document.getElementById('score').innerText = `점수: ${score}`;
+            document.getElementById('lives').innerText = `남은 기회: ${lives}`;
+            document.getElementById('game-time').innerText = `총 시간: 0초`;
+            document.getElementById('energy').style.width = '100%';
+
+            startTime = Date.now();
+            gameInterval = setInterval(updateTime, 1000);
+
+            startScreen.classList.add('hidden');
+            endScreen.classList.add('hidden');
+            gameScreen.classList.remove('hidden');
+            generateQuestion();
+        }
+
+        // 시간 업데이트 함수
+        function updateTime() {
+            const elapsedTime = Math.floor((Date.now() - startTime) / 1000);
+            document.getElementById('game-time').innerText = `총 시간: ${elapsedTime}초`;
+        }
+
+        // 난이도 버튼 클릭 -> 게임 시작
+        document.querySelectorAll('.difficulty-button').forEach(button => {
+            button.addEventListener('click', () => {
+                playerName = playerNameInput.value.trim();
+                if (!playerName) {
+                    alert('이름을 입력해주세요!');
+                    return;
+                }
+                const difficulty = button.getAttribute('data-difficulty');
+                startGame(difficulty); // 난이도에 따라 게임 시작
+            });
+        });
+
+        // "점수 전송" 버튼 클릭 시
+        sendScoreButton.addEventListener('click', () => {
+            const finalScore = score;
+            const elapsedTime = Math.floor((Date.now() - startTime) / 1000);
+            saveData("분수를 소수로", playerName, finalScore, elapsedTime);
+        });
+
+        // 문제 제출 버튼
+        submitButton.addEventListener('click', () => {
+            const userAnswer = decimalInput.value.trim();
+            if (userAnswer === "") {
+                alert('답을 입력해주세요!');
+                return;
+            }
+            if (userAnswer === correctDecimal) {
+                alert('정답입니다!');
+                score += 10;
+                document.getElementById('score').innerText = `점수: ${score}`;
+                document.getElementById('energy').style.width = `${Math.min(100, score)}%`;
+            } else {
+                alert(`틀렸습니다! 정답은 ${correctDecimal}입니다.`);
+                lives -= 1;
+                document.getElementById('lives').innerText = `남은 기회: ${lives}`;
+                document.getElementById('energy').style.width = `${Math.max(0, score)}%`;
+                if (lives <= 0) {
+                    endGame();
+                    return;
+                }
+            }
+            generateQuestion(); // 다음 문제
+        });
+
+        // 게임 종료 함수
+        function endGame() {
+            clearInterval(gameInterval);
+            gameScreen.classList.add('hidden');
+            endScreen.classList.remove('hidden');
+            document.getElementById('final-score').innerText = `최종 점수: ${score}`;
+            const totalTime = Math.floor((Date.now() - startTime) / 1000);
+            document.getElementById('final-time').innerText = `총 시간: ${totalTime}초`;
+        }
+
+        // 다시 시작 버튼 클릭 시
+        restartButton.addEventListener('click', () => {
+            endScreen.classList.add('hidden');
+            startScreen.classList.remove('hidden');
+            playerNameInput.value = "";
+        });
+
+        // 원본에 있던 saveData 함수(절대 생략 금지)
+        /*
+        function saveDataOriginal(game, name, score, elapsedTime) {
+            const FUNCTION_URL = "https://us-central1-record-f420d.cloudfunctions.net/report";
+
+            const requestData = {
+                game,
+                name,
+                score: parseInt(score, 10),
+                elapsedTime: parseInt(elapsedTime, 10)
+            };
+
+            fetch(FUNCTION_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                responseDiv.innerText = `성공: ${JSON.stringify(data, null, 2)}`;
+            })
+            .catch(error => {
+                console.error('요청 실패:', error);
+                responseDiv.innerText = `네트워크 오류: ${error.message}`;
+            });
+        }
+        */
+
+        // 3. 요청하신 새 코드(데이터 전송) - 실제 사용
+        // 6. 원본 코드 절대 생략 금지 -> 위에 주석으로 보관
+        async function saveData(game, name, score, elapsedTime) {
+            const FUNCTION_URL = "https://us-central1-record-f420d.cloudfunctions.net/report";
+
+            const requestData = {
+                game,
+                name,
+                score: parseInt(score, 10),
+                elapsedTime: parseInt(elapsedTime, 10)
+            };
+
+            try {
+                const response = await fetch(FUNCTION_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestData)
+                });
+
+                const responseData = await response.json();
+
+                if (response.ok) {
+                    responseDiv.innerText = `성공: ${JSON.stringify(responseData, null, 2)}`;
+                } else {
+                    responseDiv.innerText = `오류: ${JSON.stringify(responseData, null, 2)}`;
+                }
+            } catch (error) {
+                console.error('요청 실패:', error);
+                responseDiv.innerText = `네트워크 오류: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>
